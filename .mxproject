@@ -1,7 +1,7 @@
 [PreviousGenFiles]
-HeaderPath=K:/Home/MyProjects/Music/Stylophone/Firmware/StylophOverkill/Inc
+HeaderPath=C:/Users/adamiens/STM32CubeIDE/workspace_1.3.0/StylophOverkill/Inc
 HeaderFiles=stm32g4xx_it.h;stm32g4xx_hal_conf.h;main.h;usb_device.h;usbd_conf.h;usbd_desc.h;usbd_custom_hid_if.h;
-SourcePath=K:/Home/MyProjects/Music/Stylophone/Firmware/StylophOverkill/Src
+SourcePath=C:/Users/adamiens/STM32CubeIDE/workspace_1.3.0/StylophOverkill/Src
 SourceFiles=stm32g4xx_it.c;stm32g4xx_hal_msp.c;main.c;usb_device.c;usbd_conf.c;usbd_desc.c;usbd_custom_hid_if.c;
 
 [PreviousLibFiles]
