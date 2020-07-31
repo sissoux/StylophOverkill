@@ -116,6 +116,10 @@ int main(void)
   MX_FMAC_Init();
   MX_DAC1_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
+
+
 
   /* USER CODE END 2 */
 
@@ -123,6 +127,8 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	 //HAL_GPIO_TogglePin(PA_9_GPIO_Port, PA_9_Pin);
+	 //HAL_Delay(5);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -200,6 +206,7 @@ static void MX_ADC1_Init(void)
 
   /* USER CODE BEGIN ADC1_Init 1 */
 
+
   /* USER CODE END ADC1_Init 1 */
   /** Common config 
   */
@@ -269,6 +276,21 @@ static void MX_CORDIC_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CORDIC_Init 2 */
+
+  CORDIC_ConfigTypeDef sCordicConfig = {0};
+  /*## Configure the CORDIC peripheral ####################################*/
+  sCordicConfig.Function = CORDIC_FUNCTION_SINE; /* sine function */
+  sCordicConfig.Precision = CORDIC_PRECISION_6CYCLES; /* max precision for q1.31 sine */
+  sCordicConfig.Scale = CORDIC_SCALE_0; /* no scale */
+  sCordicConfig.NbWrite = CORDIC_NBWRITE_1; /* One input data: angle. Second input data (modulus) is 1 after cordic reset */
+  sCordicConfig.NbRead = CORDIC_NBREAD_1; /* One output data: sine*/
+  sCordicConfig.InSize = CORDIC_INSIZE_32BITS; /* q1.31 format for input data */
+  sCordicConfig.OutSize = CORDIC_OUTSIZE_32BITS; /* q1.31 format for output data */
+  if (HAL_CORDIC_Configure(&hcordic, &sCordicConfig) != HAL_OK)
+   {
+  /* Configuration Error */
+  Error_Handler();
+   }
 
   /* USER CODE END CORDIC_Init 2 */
 
