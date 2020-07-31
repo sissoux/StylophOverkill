@@ -33,6 +33,29 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+/* The basic operations perfomed on two numbers a and b of fixed
+ point q format returning the answer in q format */
+#define FADD(a,b) ((a)+(b))
+#define FSUB(a,b) ((a)-(b))
+#define FMUL(a,b,q) (((a)*(b))>>(q))
+#define FDIV(a,b,q) (((a)<<(q))/(b))
+/* The basic operations where a is of fixed point q format and b is
+ an integer */
+#define FADDI(a,b,q) ((a)+((b)<<(q)))
+#define FSUBI(a,b,q) ((a)-((b)<<(q)))
+#define FMULI(a,b) ((a)*(b))
+#define FDIVI(a,b) ((a)/(b))
+/* convert a from q1 format to q2 format */
+#define FCONV(a, q1, q2) (((q2)>(q1)) ? (a)<<((q2)-(q1)) : (a)>>((q1)-(q2)))
+/* the general operation between a in q1 format and b in q2 format
+ returning the result in q3 format */
+#define FADDG(a,b,q1,q2,q3) (FCONV(a,q1,q3)+FCONV(b,q2,q3))
+#define FSUBG(a,b,q1,q2,q3) (FCONV(a,q1,q3)-FCONV(b,q2,q3))
+#define FMULG(a,b,q1,q2,q3) FCONV((a)*(b), (q1)+(q2), q3)
+#define FDIVG(a,b,q1,q2,q3) (FCONV(a, q1, (q2)+(q3))/(b))
+/* convert to and from floating point */
+#define TOFIX(d, q) ((int)( (d)*(double)(1<<(q)) ))
+#define TOFLT(a, q) ( (double)(a) / (double)(1<<(q)) )
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -118,6 +141,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
   HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
+  HAL_DAC_Start(&hdac1, DAC1_CHANNEL_1);
 
 
 
@@ -127,8 +151,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	 //HAL_GPIO_TogglePin(PA_9_GPIO_Port, PA_9_Pin);
-	 //HAL_Delay(5);
+	 //HAL_CORDIC_Calculate(&hcordic, pInBuff, pOutBuff, NbCalc, Timeout)
+
+	 for (int i = 0 ; i < 4096 ; i++)
+	 {
+		 float angle = ((float)i-2048.0)/2048.0;
+		 int32_t Fangle = TOFIX(angle,31);
+		 int32_t Fresult =0;
+		 HAL_CORDIC_Calculate(&hcordic, &Fangle, &Fresult, 1, 2);
+		 //HAL_Delay(0.001);
+		 float calculatedSin = TOFLT(Fresult,31);
+		 int resutl = (int)(2048.0*calculatedSin);
+		 HAL_DAC_SetValue(&hdac1, DAC1_CHANNEL_1, DAC_ALIGN_12B_R, resutl);
+	 }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -326,7 +361,7 @@ static void MX_DAC1_Init(void)
   sConfig.DAC_DMADoubleDataMode = DISABLE;
   sConfig.DAC_SignedFormat = ENABLE;
   sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
-  sConfig.DAC_Trigger = DAC_TRIGGER_T6_TRGO;
+  sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
   sConfig.DAC_Trigger2 = DAC_TRIGGER_NONE;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
   sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
