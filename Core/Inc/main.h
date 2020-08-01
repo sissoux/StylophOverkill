@@ -61,10 +61,26 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Vkeyboard_L_Pin GPIO_PIN_0
+#define Vkeyboard_L_GPIO_Port GPIOA
+#define Vkeyboard_H_Pin GPIO_PIN_1
+#define Vkeyboard_H_GPIO_Port GPIOA
 #define USART2_TX_Pin GPIO_PIN_2
 #define USART2_TX_GPIO_Port GPIOA
 #define USART2_RX_Pin GPIO_PIN_3
 #define USART2_RX_GPIO_Port GPIOA
+#define Audio_out_R_Pin GPIO_PIN_4
+#define Audio_out_R_GPIO_Port GPIOA
+#define Audio_out_L_Pin GPIO_PIN_5
+#define Audio_out_L_GPIO_Port GPIOA
+#define SPK_hi_B_Pin GPIO_PIN_7
+#define SPK_hi_B_GPIO_Port GPIOA
+#define SPK_hi_A_Pin GPIO_PIN_0
+#define SPK_hi_A_GPIO_Port GPIOB
+#define SPK_lo_B_Pin GPIO_PIN_8
+#define SPK_lo_B_GPIO_Port GPIOA
+#define SPK_lo_A_Pin GPIO_PIN_9
+#define SPK_lo_A_GPIO_Port GPIOA
 #define T_SWDIO_Pin GPIO_PIN_13
 #define T_SWDIO_GPIO_Port GPIOA
 #define T_SWCLK_Pin GPIO_PIN_14

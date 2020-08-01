@@ -60,6 +60,7 @@ extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_cordic_read;
 extern DMA_HandleTypeDef hdma_cordic_write;
 extern DMA_HandleTypeDef hdma_dac1_ch1;
+extern DMA_HandleTypeDef hdma_dac1_ch2;
 extern DAC_HandleTypeDef hdac1;
 extern TIM_HandleTypeDef htim6;
 /* USER CODE BEGIN EV */
@@ -231,6 +232,20 @@ void DMA1_Channel2_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles DMA1 channel3 global interrupt.
+  */
+void DMA1_Channel3_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Channel3_IRQn 0 */
+
+  /* USER CODE END DMA1_Channel3_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_dac1_ch2);
+  /* USER CODE BEGIN DMA1_Channel3_IRQn 1 */
+
+  /* USER CODE END DMA1_Channel3_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM6 global interrupt, DAC1 and DAC3 channel underrun error interrupts.
   */
 void TIM6_DAC_IRQHandler(void)
@@ -281,8 +296,7 @@ void DMAMUX_OVR_IRQHandler(void)
   /* USER CODE BEGIN DMAMUX_OVR_IRQn 0 */
 
   /* USER CODE END DMAMUX_OVR_IRQn 0 */
-  // Handle DMA1_Channel2
-  HAL_DMAEx_MUX_IRQHandler(&hdma_dac1_ch1);
+  
   /* USER CODE BEGIN DMAMUX_OVR_IRQn 1 */
 
   /* USER CODE END DMAMUX_OVR_IRQn 1 */
