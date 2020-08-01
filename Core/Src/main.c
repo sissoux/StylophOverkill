@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "define.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,31 +33,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-/* The basic operations perfomed on two numbers a and b of fixed
- point q format returning the answer in q format */
-#define FADD(a,b) ((a)+(b))
-#define FSUB(a,b) ((a)-(b))
-#define FMUL(a,b,q) (((a)*(b))>>(q))
-#define FDIV(a,b,q) (((a)<<(q))/(b))
-/* The basic operations where a is of fixed point q format and b is
- an integer */
-#define FADDI(a,b,q) ((a)+((b)<<(q)))
-#define FSUBI(a,b,q) ((a)-((b)<<(q)))
-#define FMULI(a,b) ((a)*(b))
-#define FDIVI(a,b) ((a)/(b))
-/* convert a from q1 format to q2 format */
-#define FCONV(a, q1, q2) (((q2)>(q1)) ? (a)<<((q2)-(q1)) : (a)>>((q1)-(q2)))
-/* the general operation between a in q1 format and b in q2 format
- returning the result in q3 format */
-#define FADDG(a,b,q1,q2,q3) (FCONV(a,q1,q3)+FCONV(b,q2,q3))
-#define FSUBG(a,b,q1,q2,q3) (FCONV(a,q1,q3)-FCONV(b,q2,q3))
-#define FMULG(a,b,q1,q2,q3) FCONV((a)*(b), (q1)+(q2), q3)
-#define FDIVG(a,b,q1,q2,q3) (FCONV(a, q1, (q2)+(q3))/(b))
-/* convert to and from floating point */
-#define TOFIX(d, q) ((int)( (d)*(double)(1<<(q)) ))
-#define TOFLT(a, q) ( (double)(a) / (double)(1<<(q)) )
 
-#define LOOKUP_TABLE_SIZE 500
+
+#define LOOKUP_TABLE_SIZE 400
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -112,6 +90,60 @@ void generateSineTable()
 		 sine_table[i] = (uint32_t)(1024.0*calculatedSin+2048.0);
 	}
 }
+//For now just apply the note index output settings based on current output mode.
+void note_on(uint16_t  index)
+{
+	if (index >= NUMBER_OF_NOTES) return;
+	switch(CurrentOMode)
+	{
+	case PWM:
+		if (NextOMode == synth)
+		{
+			HAL_TIM_Base_Start(&htim6);
+			HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_2);
+			HAL_TIMEx_PWMN_Stop(&htim1, TIM_CHANNEL_2);
+			CurrentOMode = synth;
+			note_on(index); // Apply immediately the new mode
+		}
+		else
+		{
+			TIM1->ARR = (notes[index].PWM_ARR-1);	//Auto reload pre load is enabled ==> Change of frequency active at next reload
+			TIM1->CCR2 = (notes[index].PWM_ARR-1)/2;	//Auto Compare pre load is enabled ==> Change of duty active at next reload
+		}
+		break;
+
+	case synth:
+		if (NextOMode == PWM)
+		{
+			HAL_TIM_Base_Stop(&htim6);
+			HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+			HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
+			CurrentOMode = PWM;
+			note_on(index); // Apply immediately the new mode
+		}
+		else TIM6->ARR = (notes[index].Synth_ARR-1)/2;	//Auto reload pre load is enabled ==> Change of frequency active at next reload
+		break;
+
+	case None:
+		if (NextOMode == PWM)
+		{
+		  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+		  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
+		  CurrentOMode = PWM;
+		}
+		else if (NextOMode == synth)
+		{
+			HAL_TIM_Base_Start(&htim6);
+			CurrentOMode = synth;
+		}
+		note_on(index); // Apply immediately the new mode
+		break;
+
+	default:
+		break;
+
+	}
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -157,11 +189,9 @@ int main(void)
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
   generateSineTable();
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
+  fill_notes_table();
   HAL_TIM_Base_Start(&htim6);
   HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, sine_table, LOOKUP_TABLE_SIZE, DAC_ALIGN_12B_R);
-  //HAL_DAC_Start(&hdac1, DAC1_CHANNEL_1);
 
 
 
@@ -170,9 +200,18 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  uint16_t Nctr = 0;
+  NextOMode = synth;
+  //testing we get back the expected notes
+  int nte = getActiveNote(4095, 4095);//None
+  nte = getActiveNote(1515, 4095);//7 E3
+  nte = getActiveNote(1515, 1515);//7 E3
+  nte = getActiveNote(4095, 1984);//19 E4
   while (1)
   {
-	 //HAL_CORDIC_Calculate(&hcordic, pInBuff, pOutBuff, NbCalc, Timeout)
+	  note_on(Nctr);
+	  Nctr = (Nctr+1)%NUMBER_OF_NOTES;
+	  HAL_Delay(500);
 
     /* USER CODE END WHILE */
 
@@ -433,12 +472,12 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 9;
+  htim1.Init.Prescaler = 19;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 849;
+  htim1.Init.Period = 19000;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
-  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
@@ -462,7 +501,7 @@ static void MX_TIM1_Init(void)
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 250;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_LOW;
   sConfigOC.OCFastMode = TIM_OCFAST_ENABLE;
   sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
   sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
@@ -473,7 +512,7 @@ static void MX_TIM1_Init(void)
   sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
   sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
   sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
-  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.DeadTime = 200;
   sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
   sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
   sBreakDeadTimeConfig.BreakFilter = 0;
@@ -512,10 +551,10 @@ static void MX_TIM6_Init(void)
 
   /* USER CODE END TIM6_Init 1 */
   htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 17-1;
+  htim6.Init.Prescaler = 1;
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim6.Init.Period = 22;
-  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
   {
     Error_Handler();
