@@ -56,6 +56,8 @@
 /* convert to and from floating point */
 #define TOFIX(d, q) ((int)( (d)*(double)(1<<(q)) ))
 #define TOFLT(a, q) ( (double)(a) / (double)(1<<(q)) )
+
+#define LOOKUP_TABLE_SIZE 500
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -77,10 +79,12 @@ DMA_HandleTypeDef hdma_dac1_ch1;
 FMAC_HandleTypeDef hfmac;
 
 TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim6;
 
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+uint32_t sine_table[LOOKUP_TABLE_SIZE];
 
 /* USER CODE END PV */
 
@@ -94,8 +98,20 @@ static void MX_ADC1_Init(void);
 static void MX_CORDIC_Init(void);
 static void MX_FMAC_Init(void);
 static void MX_DAC1_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
-
+void generateSineTable()
+{
+	for (int i = 0 ; i < LOOKUP_TABLE_SIZE ; i++)
+	{
+		 float angle = ((float)i-(float)LOOKUP_TABLE_SIZE/2.0)/((float)LOOKUP_TABLE_SIZE/2.0);
+		 int32_t Fangle = TOFIX(angle,31);
+		 int32_t Fresult =0;
+		 HAL_CORDIC_Calculate(&hcordic, &Fangle, &Fresult, 1, 2);
+		 float calculatedSin = TOFLT(Fresult,31);
+		 sine_table[i] = (uint32_t)(1024.0*calculatedSin+2048.0);
+	}
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -138,10 +154,15 @@ int main(void)
   MX_CORDIC_Init();
   MX_FMAC_Init();
   MX_DAC1_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
+  generateSineTable();
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
   HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
-  HAL_DAC_Start(&hdac1, DAC1_CHANNEL_1);
+  HAL_TIM_Base_Start(&htim6);
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, sine_table, LOOKUP_TABLE_SIZE, DAC_ALIGN_12B_R);
+  //HAL_DAC_Start(&hdac1, DAC1_CHANNEL_1);
+
 
 
 
@@ -153,17 +174,6 @@ int main(void)
   {
 	 //HAL_CORDIC_Calculate(&hcordic, pInBuff, pOutBuff, NbCalc, Timeout)
 
-	 for (int i = 0 ; i < 4096 ; i++)
-	 {
-		 float angle = ((float)i-2048.0)/2048.0;
-		 int32_t Fangle = TOFIX(angle,31);
-		 int32_t Fresult =0;
-		 HAL_CORDIC_Calculate(&hcordic, &Fangle, &Fresult, 1, 2);
-		 //HAL_Delay(0.001);
-		 float calculatedSin = TOFLT(Fresult,31);
-		 int resutl = (int)(2048.0*calculatedSin);
-		 HAL_DAC_SetValue(&hdac1, DAC1_CHANNEL_1, DAC_ALIGN_12B_R, resutl);
-	 }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -359,9 +369,9 @@ static void MX_DAC1_Init(void)
   */
   sConfig.DAC_HighFrequency = DAC_HIGH_FREQUENCY_INTERFACE_MODE_AUTOMATIC;
   sConfig.DAC_DMADoubleDataMode = DISABLE;
-  sConfig.DAC_SignedFormat = ENABLE;
+  sConfig.DAC_SignedFormat = DISABLE;
   sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
-  sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
+  sConfig.DAC_Trigger = DAC_TRIGGER_T6_TRGO;
   sConfig.DAC_Trigger2 = DAC_TRIGGER_NONE;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
   sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
@@ -485,6 +495,44 @@ static void MX_TIM1_Init(void)
 }
 
 /**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 17-1;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 22;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -556,6 +604,9 @@ static void MX_DMA_Init(void)
   /* DMA2_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Channel2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Channel2_IRQn);
+  /* DMAMUX_OVR_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMAMUX_OVR_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMAMUX_OVR_IRQn);
 
 }
 
