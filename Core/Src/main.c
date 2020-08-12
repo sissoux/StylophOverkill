@@ -97,6 +97,7 @@ static void MX_TIM6_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
+
 typedef enum{
 	sine,
 	square,
@@ -252,7 +253,8 @@ int main(void)
 	MX_TIM6_Init();
 	MX_TIM2_Init();
 	/* USER CODE BEGIN 2 */
-	generateWaveTable(wave_table, sawtooth,  LOOKUP_TABLE_SIZE, 1.0 );
+	waveShape currentWaveShape = triangular;
+	generateWaveTable(wave_table, currentWaveShape,  LOOKUP_TABLE_SIZE, 0.08 );
 	fill_notes_table();
 	//HAL_TIM_Base_Start(&htim6);
 	HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_2, wave_table, LOOKUP_TABLE_SIZE, DAC_ALIGN_12B_R);
@@ -279,23 +281,39 @@ int main(void)
 		uint8_t tempsButtonflag = buttonFlags;
 		if (tempsButtonflag& 1<<VOL_P_BIT)
 		{
-			buttonFlags &= 0xFE <<VOL_P_BIT;
-			outputVolume +=0.05;
-			if (outputVolume>1.0) outputVolume = 1.0;
+			//buttonFlags &= 0xFE <<VOL_P_BIT;
+			//outputVolume +=0.05;
+			//if (outputVolume>1.0) outputVolume = 1.0;
 			//generateWaveTable();
 		}
 		if (tempsButtonflag& 1<<VOL_M_BIT)
 		{
-			buttonFlags &= 0xFE <<VOL_M_BIT;
-			outputVolume -=0.05;
-			if(outputVolume<0.0) outputVolume = 0.0;
+			//buttonFlags &= 0xFE <<VOL_M_BIT;
+			//outputVolume -=0.05;
+			//if(outputVolume<0.0) outputVolume = 0.0;
 			//generateWaveTable();
 		}
 		if (tempsButtonflag& 1<<INST_P_BIT)
 		{
 			buttonFlags &= 0xFE <<INST_P_BIT;
-			if(CurrentOMode == PWM) NextOMode = synth;
-			else NextOMode = PWM;
+			switch(currentWaveShape)
+			{
+			case sine:
+				currentWaveShape = square;
+				break;
+			case square:
+				currentWaveShape = sawtooth;
+				break;
+			case sawtooth:
+				currentWaveShape = triangular;
+				break;
+			case triangular:
+				currentWaveShape = sine;
+				break;
+			case pulse:
+				break;
+			}
+			generateWaveTable(wave_table, currentWaveShape,  LOOKUP_TABLE_SIZE, 0.08 );
 		}
 		if (tempsButtonflag& 1<<INST_M_BIT)
 		{
