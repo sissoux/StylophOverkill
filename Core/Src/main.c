@@ -69,7 +69,7 @@ TIM_HandleTypeDef htim6;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint32_t sine_table[LOOKUP_TABLE_SIZE];
+uint32_t wave_table[LOOKUP_TABLE_SIZE];
 float outputVolume = 0.1;
 uint32_t KeyboardCaptureBuffer[2];
 
@@ -96,16 +96,43 @@ static void MX_DAC1_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
-void generateSineTable()
+
+typedef enum{
+	sine,
+	square,
+	sawtooth,
+	triangular,
+	pulse
+}waveShape;
+
+void generateWaveTable(uint32_t table[], waveShape shape,  uint16_t size, float amplitude)
 {
-	for (int i = 0 ; i < LOOKUP_TABLE_SIZE ; i++)
+	for (int i = 0 ; i < size ; i++)
 	{
-		float angle = ((float)i-(float)LOOKUP_TABLE_SIZE/2.0)/((float)LOOKUP_TABLE_SIZE/2.0);
-		int32_t Fangle = TOFIX(angle,31);
-		int32_t Fresult =0;
-		HAL_CORDIC_Calculate(&hcordic, &Fangle, &Fresult, 1, 2);
-		float calculatedSin = TOFLT(Fresult,31);
-		sine_table[i] = (uint32_t)(outputVolume*2048.0*calculatedSin+2048.0);
+		switch(shape)
+		{
+		case sine:;
+			float angle = ((float)i-(float)size/2.0)/((float)size/2.0);
+			int32_t Fangle = TOFIX(angle,31);
+			int32_t Fresult =0;
+			HAL_CORDIC_Calculate(&hcordic, &Fangle, &Fresult, 1, 2);
+			float calculatedSin = TOFLT(Fresult,31);
+			table[i] = (uint32_t)(amplitude*2047.0*calculatedSin+2048.0);
+			break;
+		case square:
+			if (i < size/2) table[i] = (uint32_t)(2048.0 + amplitude*2047.0);
+			else table[i] = (uint32_t)(2047.0-amplitude*2047.0);
+			break;
+		case sawtooth:
+			table[i] = (uint32_t)(((amplitude*4095.0)/(float)size)*(float)i+(2047.0-amplitude*2047.0));
+			break;
+		case triangular:
+			if (i < size/2) table[i] = (uint32_t)(((amplitude*4095.0)/(float)size*2.0)*(float)i+(2048.0-amplitude*2048.0));
+			else table[i] = (uint32_t)(((-amplitude*4095.0)/(float)size*2.0)*(float)(i-size/2)+(2048.0+amplitude*2048.0));
+			break;
+		case pulse:
+			break;
+		}
 	}
 }
 
@@ -225,11 +252,11 @@ int main(void)
 	MX_TIM6_Init();
 	MX_TIM2_Init();
 	/* USER CODE BEGIN 2 */
-	generateSineTable();
+	generateWaveTable(wave_table, sawtooth,  LOOKUP_TABLE_SIZE, 1.0 );
 	fill_notes_table();
 	//HAL_TIM_Base_Start(&htim6);
-	HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_2, sine_table, LOOKUP_TABLE_SIZE, DAC_ALIGN_12B_R);
-	HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, sine_table, LOOKUP_TABLE_SIZE, DAC_ALIGN_12B_R);
+	HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_2, wave_table, LOOKUP_TABLE_SIZE, DAC_ALIGN_12B_R);
+	HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, wave_table, LOOKUP_TABLE_SIZE, DAC_ALIGN_12B_R);
 	HAL_TIM_Base_Start_IT(&htim2);
 
 	HAL_ADC_Start_DMA(&hadc1, KeyboardCaptureBuffer, 2);
@@ -255,14 +282,14 @@ int main(void)
 			buttonFlags &= 0xFE <<VOL_P_BIT;
 			outputVolume +=0.05;
 			if (outputVolume>1.0) outputVolume = 1.0;
-			generateSineTable();
+			//generateWaveTable();
 		}
 		if (tempsButtonflag& 1<<VOL_M_BIT)
 		{
 			buttonFlags &= 0xFE <<VOL_M_BIT;
 			outputVolume -=0.05;
 			if(outputVolume<0.0) outputVolume = 0.0;
-			generateSineTable();
+			//generateWaveTable();
 		}
 		if (tempsButtonflag& 1<<INST_P_BIT)
 		{
