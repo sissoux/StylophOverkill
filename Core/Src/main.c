@@ -40,7 +40,7 @@
 #define VOL_M_BIT 6
 #define INST_P_BIT 5
 #define INST_M_BIT 4
-#define DEBOUNCE_TIME 50 //TIM 2 ARR IRQ = ms
+#define DEBOUNCE_TIME 10 //TIM 2 ARR IRQ = ms
 
 /* USER CODE END PD */
 
@@ -80,6 +80,7 @@ volatile uint16_t Inst_p_Tick;
 volatile uint16_t Inst_m_Tick;
 volatile uint16_t Tick;
 volatile uint8_t buttonFlags = 0x00; // Vol+_Vol-_Inst+_Inst-_0_0_0_0
+volatile uint8_t buttonDownFlags = 0x00; // Vol+_Vol-_Inst+_Inst-_0_0_0_0
 
 
 /* USER CODE END PV */
@@ -117,13 +118,13 @@ void generateWaveTable(uint32_t table[], waveShape shape,  uint16_t size, float 
 		switch(shape)
 		{
 		case sine:;
-			float angle = ((float)i-(float)size/2.0f)/((float)size/2.0f);
-			int32_t Fangle = TOFIX(angle,31);
-			int32_t Fresult =0;
-			HAL_CORDIC_Calculate(&hcordic, &Fangle, &Fresult, 1, 2);
-			float calculatedSin = TOFLT(Fresult,31);
-			table[i] = (uint32_t)(amplitude*2047.0f*calculatedSin+2048.0f);
-			break;
+		float angle = ((float)i-(float)size/2.0f)/((float)size/2.0f);
+		int32_t Fangle = TOFIX(angle,31);
+		int32_t Fresult =0;
+		HAL_CORDIC_Calculate(&hcordic, &Fangle, &Fresult, 1, 2);
+		float calculatedSin = TOFLT(Fresult,31);
+		table[i] = (uint32_t)(amplitude*2047.0f*calculatedSin+2048.0f);
+		break;
 		case square:
 			if (i < size/2) table[i] = (uint32_t)(2048.0f + amplitude*2047.0f);
 			else table[i] = (uint32_t)(2047.0f-amplitude*2047.0f);
@@ -262,7 +263,7 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 	waveShape currentWaveShape = triangular;
-	generateWaveTable(wave_table, currentWaveShape,  LOOKUP_TABLE_SIZE, 0.08 );
+	generateWaveTable(wave_table, currentWaveShape,  LOOKUP_TABLE_SIZE, outputVolume );
 	fill_notes_table();
 	//HAL_TIM_Base_Start(&htim6);
 	HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_2, wave_table, LOOKUP_TABLE_SIZE, DAC_ALIGN_12B_R);
@@ -285,23 +286,72 @@ int main(void)
 		{
 			Tick = 0;
 			note_on(getActiveNote(KeyboardCaptureBuffer[0], KeyboardCaptureBuffer[1]));
+
+			if(HAL_GPIO_ReadPin(Volp_GPIO_Port, Volp_Pin)==0 && !(buttonDownFlags& 1<<VOL_P_BIT))
+			{
+				Vol_p_Tick = 0; 	// Falling edge, restart debounce counter
+				buttonDownFlags |= 1<<VOL_P_BIT;
+			}
+			else if ((buttonDownFlags& 1<<VOL_P_BIT) &&HAL_GPIO_ReadPin(Volp_GPIO_Port, Volp_Pin)==1)
+			{
+				buttonDownFlags &= 0xFE <<VOL_P_BIT;
+				if(Vol_p_Tick >= DEBOUNCE_TIME)
+					buttonFlags |= 1<<VOL_P_BIT;
+			}
+
+			if(HAL_GPIO_ReadPin(Volm_GPIO_Port, Volm_Pin)==0 && !(buttonDownFlags& 1<<VOL_M_BIT))
+			{
+				Vol_m_Tick = 0; 	// Falling edge, restart debounce counter
+				buttonDownFlags |= 1<<VOL_M_BIT;
+			}
+			else if ((buttonDownFlags& 1<<VOL_M_BIT) &&HAL_GPIO_ReadPin(Volm_GPIO_Port, Volm_Pin)==1)
+			{
+				buttonDownFlags &= 0xFE <<VOL_M_BIT;
+				if(Vol_m_Tick >= DEBOUNCE_TIME)
+					buttonFlags |= 1<<VOL_M_BIT;
+			}
+
+			if(HAL_GPIO_ReadPin(Instp_GPIO_Port, Instp_Pin)==0 && !(buttonDownFlags& 1<<INST_P_BIT))
+			{
+				Inst_p_Tick = 0; 	// Falling edge, restart debounce counter
+				buttonDownFlags |= 1<<INST_P_BIT;
+			}
+			else if ((buttonDownFlags& 1<<INST_P_BIT) &&HAL_GPIO_ReadPin(Instp_GPIO_Port, Instp_Pin)==1)
+			{
+				buttonDownFlags &= 0xFE <<INST_P_BIT;
+				if(Inst_p_Tick >= DEBOUNCE_TIME)
+					buttonFlags |= 1<<INST_P_BIT;
+			}
+
+			if(HAL_GPIO_ReadPin(Instm_GPIO_Port, Instm_Pin)==0 && !(buttonDownFlags& 1<<INST_M_BIT))
+			{
+				Inst_m_Tick = 0; 	// Falling edge, restart debounce counter
+				buttonDownFlags |= 1<<INST_M_BIT;
+			}
+			else if ((buttonDownFlags& 1<<INST_M_BIT) &&HAL_GPIO_ReadPin(Instm_GPIO_Port, Instm_Pin)==1)
+			{
+				buttonDownFlags &= 0xFE <<INST_M_BIT;
+				if(Inst_m_Tick >= DEBOUNCE_TIME)
+					buttonFlags |= 1<<INST_M_BIT;
+			}
 		}
-		uint8_t tempsButtonflag = buttonFlags;
-		if (tempsButtonflag& 1<<VOL_P_BIT)
+
+		if (buttonFlags& 1<<VOL_P_BIT)
 		{
-			//buttonFlags &= 0xFE <<VOL_P_BIT;
-			//outputVolume +=0.05;
-			//if (outputVolume>1.0) outputVolume = 1.0;
-			//generateWaveTable();
+			int a = 0;
+			buttonFlags &= 0xFE <<VOL_P_BIT;
+			outputVolume +=0.05;
+			if (outputVolume>1.0) outputVolume = 1.0;
+			generateWaveTable(wave_table, currentWaveShape,  LOOKUP_TABLE_SIZE, outputVolume );
 		}
-		if (tempsButtonflag& 1<<VOL_M_BIT)
+		if (buttonFlags& 1<<VOL_M_BIT)
 		{
-			//buttonFlags &= 0xFE <<VOL_M_BIT;
-			//outputVolume -=0.05;
-			//if(outputVolume<0.0) outputVolume = 0.0;
-			//generateWaveTable();
+			buttonFlags &= 0xFE <<VOL_M_BIT;
+			outputVolume -=0.05;
+			if(outputVolume<0.0) outputVolume = 0.0;
+			generateWaveTable(wave_table, currentWaveShape,  LOOKUP_TABLE_SIZE, outputVolume );
 		}
-		if (tempsButtonflag& 1<<INST_P_BIT)
+		if (buttonFlags& 1<<INST_P_BIT)
 		{
 			buttonFlags &= 0xFE <<INST_P_BIT;
 			switch(currentWaveShape)
@@ -321,12 +371,29 @@ int main(void)
 			case pulse:
 				break;
 			}
-			generateWaveTable(wave_table, currentWaveShape,  LOOKUP_TABLE_SIZE, 0.08 );
+			generateWaveTable(wave_table, currentWaveShape,  LOOKUP_TABLE_SIZE, outputVolume );
 		}
-		if (tempsButtonflag& 1<<INST_M_BIT)
+		if (buttonFlags& 1<<INST_M_BIT)
 		{
 			buttonFlags &= 0xFE <<INST_M_BIT;
-			NextOMode = synth;
+			switch(currentWaveShape)
+			{
+			case sine:
+				currentWaveShape = triangular;
+				break;
+			case square:
+				currentWaveShape = sine;
+				break;
+			case sawtooth:
+				currentWaveShape = square;
+				break;
+			case triangular:
+				currentWaveShape = sawtooth;
+				break;
+			case pulse:
+				break;
+			}
+			generateWaveTable(wave_table, currentWaveShape,  LOOKUP_TABLE_SIZE, outputVolume );
 		}
 
 
@@ -852,16 +919,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
 }
 
 /* USER CODE BEGIN 4 */
@@ -873,34 +930,33 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	Inst_p_Tick++;
 	Inst_m_Tick++;
 	Tick++;
-
 }
 
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO)
 {
-	switch(GPIO)
-	{
-	case GPIO_PIN_3:	//Inst +
-		if(HAL_GPIO_ReadPin(Instp_GPIO_Port, Instp_Pin)==0) Inst_p_Tick = 0; 	// Falling edge, restart debounce counter
-		else if(Inst_p_Tick >= DEBOUNCE_TIME) buttonFlags |= 1<<INST_P_BIT;		// Debouncing delay passed ==> Button push is valid
-		break;
-
-	case GPIO_PIN_4:	//VOL+
-		if(HAL_GPIO_ReadPin(Volp_GPIO_Port, Volp_Pin)==0) Vol_p_Tick = 0; 	// Falling edge, restart debounce counter
-		else if(Vol_p_Tick >= DEBOUNCE_TIME) buttonFlags |= 1<<VOL_P_BIT;		// Debouncing delay passed ==> Button push is valid
-		break;
-	case GPIO_PIN_5:	//Inst -
-		if(HAL_GPIO_ReadPin(Instm_GPIO_Port, Instm_Pin)==0) Inst_m_Tick = 0; 	// Falling edge, restart debounce counter
-		else if(Inst_m_Tick >= DEBOUNCE_TIME) buttonFlags |= 1<<INST_M_BIT;		// Debouncing delay passed ==> Button push is valid
-		break;
-	case GPIO_PIN_6:	//VOL-
-		if(HAL_GPIO_ReadPin(Volm_GPIO_Port, Volm_Pin)==0) Vol_m_Tick = 0; 	// Falling edge, restart debounce counter
-		else if(Vol_m_Tick >= DEBOUNCE_TIME) buttonFlags |= 1<<VOL_M_BIT;		// Debouncing delay passed ==> Button push is valid
-		break;
-	default:
-		break;
-	}
+	//	switch(GPIO)
+	//	{
+	//	case GPIO_PIN_3:	//Inst +
+	//		if(HAL_GPIO_ReadPin(Instp_GPIO_Port, Instp_Pin)==0) Inst_p_Tick = 0; 	// Falling edge, restart debounce counter
+	//		else if(Inst_p_Tick >= DEBOUNCE_TIME) buttonFlags |= 1<<INST_P_BIT;		// Debouncing delay passed ==> Button push is valid
+	//		break;
+	//
+	//	case GPIO_PIN_4:	//VOL+
+	//		if(HAL_GPIO_ReadPin(Volp_GPIO_Port, Volp_Pin)==0) Vol_p_Tick = 0; 	// Falling edge, restart debounce counter
+	//		else if(Vol_p_Tick >= DEBOUNCE_TIME) buttonFlags |= 1<<VOL_P_BIT;		// Debouncing delay passed ==> Button push is valid
+	//		break;
+	//	case GPIO_PIN_5:	//Inst -
+	//		if(HAL_GPIO_ReadPin(Instm_GPIO_Port, Instm_Pin)==0) Inst_m_Tick = 0; 	// Falling edge, restart debounce counter
+	//		else if(Inst_m_Tick >= DEBOUNCE_TIME) buttonFlags |= 1<<INST_M_BIT;		// Debouncing delay passed ==> Button push is valid
+	//		break;
+	//	case GPIO_PIN_6:	//VOL-
+	//		if(HAL_GPIO_ReadPin(Volm_GPIO_Port, Volm_Pin)==0) Vol_m_Tick = 0; 	// Falling edge, restart debounce counter
+	//		else if(Vol_m_Tick >= DEBOUNCE_TIME) buttonFlags |= 1<<VOL_M_BIT;		// Debouncing delay passed ==> Button push is valid
+	//		break;
+	//	default:
+	//		break;
+	//	}
 }
 
 /* USER CODE END 4 */

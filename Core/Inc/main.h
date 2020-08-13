@@ -87,16 +87,12 @@ void Error_Handler(void);
 #define T_SWCLK_GPIO_Port GPIOA
 #define Instp_Pin GPIO_PIN_3
 #define Instp_GPIO_Port GPIOB
-#define Instp_EXTI_IRQn EXTI3_IRQn
 #define Volp_Pin GPIO_PIN_4
 #define Volp_GPIO_Port GPIOB
-#define Volp_EXTI_IRQn EXTI4_IRQn
 #define Instm_Pin GPIO_PIN_5
 #define Instm_GPIO_Port GPIOB
-#define Instm_EXTI_IRQn EXTI9_5_IRQn
 #define Volm_Pin GPIO_PIN_6
 #define Volm_GPIO_Port GPIOB
-#define Volm_EXTI_IRQn EXTI9_5_IRQn
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
